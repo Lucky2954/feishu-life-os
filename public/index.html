@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我的行动</title>
+    <style>
+        /* 极简 iOS 风格 */
+        body { background-color: #F2F2F7; font-family: -apple-system, sans-serif; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 90vh; }
+        .card { background: white; width: 100%; max-width: 400px; padding: 24px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); text-align: center; }
+        h2 { margin-bottom: 24px; color: #1C1C1E; font-size: 22px; }
+        .btn { width: 100%; padding: 16px; margin-bottom: 12px; border: none; border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: #007AFF; color: white; }
+        .btn-success { background: #34C759; color: white; }
+        .btn-danger { background: #FF3B30; color: white; }
+        .btn-outline { background: #E5E5EA; color: #1C1C1E; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; margin-bottom: 8px; font-size: 14px; color: #8E8E93; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #E5E5EA; border-radius: 10px; font-size: 16px; box-sizing: border-box; background: #F2F2F7; }
+        .hidden { display: none; }
+        .loading { color: #8E8E93; font-size: 14px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="loading" class="loading">正在同步大脑... 🧠</div>
+
+    <div id="scene-active" class="card hidden">
+        <h2>正在进行中... ⏳</h2>
+        <p id="current-task-info" style="margin-bottom: 30px; font-size: 18px; color: #333; font-weight: 500;"></p>
+        <button class="btn btn-success" onclick="finishTask()">✅ 完成记录</button>
+        <button class="btn btn-outline" onclick="closeApp()">稍后再看</button>
+    </div>
+
+    <div id="scene-category" class="card hidden">
+        <h2>现在要开始什么？🚀</h2>
+        <div id="cat-buttons"></div> </div>
+
+    <div id="scene-detail" class="card hidden">
+        <h2>具体内容</h2>
+        <div class="input-group">
+            <label>二级分类 (可直接输入)</label>
+            <input type="text" id="input-sub" placeholder="例如：写代码 / 会议">
+        </div>
+        <div class="input-group">
+            <label>具体要做什么？</label>
+            <input type="text" id="input-detail" placeholder="输入任务详情...">
+        </div>
+        <button class="btn btn-primary" onclick="submitStart()">🚀 开始</button>
+        <button class="btn btn-outline" onclick="reset()">返回</button>
+    </div>
+
+    <script>
+        // 定义一级分类
+        const MAIN_CATS = ["学习", "工作", "娱乐", "运动", "生活"];
+        let selectedMainCat = "";
+        let currentRecordId = "";
+
+        // 初始化
+        window.onload = async () => {
+            try {
+                // 渲染一级分类按钮
+                const catContainer = document.getElementById('cat-buttons');
+                MAIN_CATS.forEach(cat => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-primary';
+                    btn.innerText = cat;
+                    btn.onclick = () => selectMainCat(cat);
+                    catContainer.appendChild(btn);
+                });
+
+                // 检查状态
+                const res = await fetch('/api');
+                const data = await res.json(); // 默认请求 get (action=check)
+                
+                document.getElementById('loading').classList.add('hidden');
+                
+                if (data.hasActive) {
+                    currentRecordId = data.recordId;
+                    document.getElementById('current-task-info').innerText = data.info;
+                    document.getElementById('scene-active').classList.remove('hidden');
+                } else {
+                    document.getElementById('scene-category').classList.remove('hidden');
+                }
+            } catch (e) {
+                alert("连接错误: " + e);
+            }
+        };
+
+        // 逻辑函数
+        function selectMainCat(cat) {
+            selectedMainCat = cat;
+            document.getElementById('scene-category').classList.add('hidden');
+            document.getElementById('scene-detail').classList.remove('hidden');
+            // 自动聚焦输入框
+            setTimeout(() => document.getElementById('input-sub').focus(), 100);
+        }
+
+        async function submitStart() {
+            const sub = document.getElementById('input-sub').value || "其他";
+            const detail = document.getElementById('input-detail').value || "未填写详情";
+            
+            toggleLoading(true);
+            await fetch('/api', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'start', mainCat: selectedMainCat, subCat: sub, detail: detail })
+            });
+            alert("已开始！");
+            location.reload();
+        }
+
+        async function finishTask() {
+            toggleLoading(true);
+            await fetch('/api', {
+                method: 'POST', // 或 PUT
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'finish', recordId: currentRecordId })
+            });
+            alert("辛苦了！已归档到日历 📅");
+            location.reload();
+        }
+
+        function toggleLoading(show) {
+            if(show) {
+                document.querySelectorAll('.card').forEach(e => e.classList.add('hidden'));
+                document.getElementById('loading').classList.remove('hidden');
+                document.getElementById('loading').innerText = "处理中...";
+            }
+        }
+
+        function reset() { location.reload(); }
+        function closeApp() { 
+            // 尝试关闭窗口 (部分浏览器限制)
+            window.history.back(); 
+        }
+    </script>
+</body>
+</html>
